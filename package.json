@@ -1,0 +1,12 @@
+{
+  "name": "harvestlink",
+  "version": "1.0.0",
+  "description": "Surplus food redistribution platform connecting restaurants and NGOs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
