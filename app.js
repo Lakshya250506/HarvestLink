@@ -1,5 +1,5 @@
 // ==========================================================================
-// HarvestLink - Firebase Cloud Realtime Database & Enhanced Constraints
+// HarvestLink - Firebase Architecture & Algorithmic Dispatch
 // ==========================================================================
 
 const firebaseConfig = {
@@ -11,90 +11,100 @@ const firebaseConfig = {
   appId: "1:37051386626:web:20f5cc17e6628e3106901b"
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 let localDbCache = [];
 
-// --- Realtime Firebase Cloud Listener ---
+// --- Analytics & Algorithms ---
+function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; 
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return parseFloat((R * c).toFixed(1));
+}
+
+function computePriorityScore(item, ngoLat = 26.9124, ngoLon = 75.7873) {
+    const hoursLeft = Math.max(0, (item.expiresAt - Date.now()) / (1000 * 60 * 60));
+    const urgencyScore = Math.max(0, Math.min(50, (1 - hoursLeft / 8) * 50));
+    const dist = calculateHaversineDistance(item.lat || 26.9124, item.lon || 75.7873, ngoLat, ngoLon);
+    const distScore = Math.max(0, Math.min(30, (1 - dist / 25) * 30));
+    const qtyScore = Math.min(20, (item.qty / 100) * 20);
+
+    return {
+        score: Math.round(urgencyScore + distScore + qtyScore),
+        distanceKm: dist,
+        hoursLeft: hoursLeft
+    };
+}
+
 database.ref('harvestLinkDb').on('value', (snapshot) => {
     localDbCache = snapshot.val() || [];
+    updateGlobalMetrics();
     const user = getCurrentUser();
-    if (user) {
-        if (user.role === 'restaurant') renderRestaurantDashboard();
-        else renderNgoDashboard();
-    }
+    if (user) user.role === 'restaurant' ? renderRestaurantDashboard() : renderNgoDashboard();
 });
 
-function getDb() {
-    return localDbCache;
+function updateGlobalMetrics() {
+    const db = localDbCache;
+    const completed = db.filter(i => i.status === 'completed');
+    
+    const eMeals = document.getElementById('metric-meals');
+    const ePickups = document.getElementById('metric-pickups');
+    const eDonors = document.getElementById('metric-donors');
+    const eNgos = document.getElementById('metric-ngos');
+
+    if (eMeals) eMeals.innerText = completed.reduce((sum, item) => sum + (parseInt(item.qty) || 0), 0);
+    if (ePickups) ePickups.innerText = completed.length;
+    if (eDonors) eDonors.innerText = new Set(db.map(i => i.restaurant)).size;
+    if (eNgos) eNgos.innerText = new Set(completed.map(i => i.claimedBy)).size;
 }
 
-function saveDb(data) {
-    database.ref('harvestLinkDb').set(data);
+// --- Auth Mocking ---
+function getCurrentUser() {
+    try { return JSON.parse(sessionStorage.getItem('harvestLinkUser')); } catch { return null; }
 }
 
-// --- State Management ---
-const loginForm = document.getElementById('login-form');
-const loginRole = document.getElementById('login-role');
-const loginAddressContainer = document.getElementById('login-address-container');
-
-const viewLogin = document.getElementById('view-login');
-const viewRestaurant = document.getElementById('view-restaurant');
-const viewNgo = document.getElementById('view-ngo');
-
-const userNav = document.getElementById('user-nav');
-const navUserBadge = document.getElementById('nav-user-badge');
+window.loginAsDemo = function(role) {
+    const data = role === 'restaurant' 
+        ? { role: 'restaurant', name: 'Grand Hotel', phone: '9829012345', address: 'MI Road, Jaipur', lat: 26.9150, lon: 75.8100 }
+        : { role: 'ngo', name: 'Akshaya Patra', phone: '9414056789', address: 'Malviya Nagar, Jaipur', lat: 26.8500, lon: 75.8000 };
+    sessionStorage.setItem('harvestLinkUser', JSON.stringify(data));
+    checkAuthState();
+};
 
 window.setRole = function(role) {
     document.getElementById('login-role').value = role;
-    const cardRest = document.getElementById('card-restaurant');
-    const cardNgo = document.getElementById('card-ngo');
-    const addressContainer = document.getElementById('login-address-container');
-
+    const rest = document.getElementById('card-restaurant');
+    const ngo = document.getElementById('card-ngo');
+    
     if (role === 'restaurant') {
-        cardRest.className = "cursor-pointer p-4 rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 transition-all flex flex-col items-center text-center";
-        cardNgo.className = "cursor-pointer p-4 rounded-2xl border-2 border-slate-700 bg-slate-800/50 hover:border-slate-600 transition-all flex flex-col items-center text-center";
-        addressContainer.style.display = 'block';
-        document.getElementById('login-address').required = true;
+        rest.className = "cursor-pointer p-3 rounded border-2 border-emerald-500 bg-slate-800 transition-all flex flex-col items-center text-center";
+        ngo.className = "cursor-pointer p-3 rounded border border-slate-700 bg-slate-950 transition-all flex flex-col items-center text-center";
+        document.getElementById('login-address-container').style.display = 'block';
     } else {
-        cardNgo.className = "cursor-pointer p-4 rounded-2xl border-2 border-blue-500 bg-blue-500/10 transition-all flex flex-col items-center text-center";
-        cardRest.className = "cursor-pointer p-4 rounded-2xl border-2 border-slate-700 bg-slate-800/50 hover:border-slate-600 transition-all flex flex-col items-center text-center";
-        addressContainer.style.display = 'none';
-        document.getElementById('login-address').required = false;
+        ngo.className = "cursor-pointer p-3 rounded border-2 border-blue-500 bg-slate-800 transition-all flex flex-col items-center text-center";
+        rest.className = "cursor-pointer p-3 rounded border border-slate-700 bg-slate-950 transition-all flex flex-col items-center text-center";
+        document.getElementById('login-address-container').style.display = 'none';
     }
 };
 
-function getCurrentUser() {
-    try { return JSON.parse(sessionStorage.getItem('harvestLinkUser')) || null; } 
-    catch { return null; }
-}
-
-// --- Login Handler with 10-Digit Phone Constraint ---
-loginForm.addEventListener('submit', (e) => {
+document.getElementById('login-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    const role = loginRole.value;
+    const role = document.getElementById('login-role').value;
     const rawName = document.getElementById('login-name').value.trim();
-    const phone = document.getElementById('login-phone').value.trim();
     const address = document.getElementById('login-address').value.trim();
+    const phone = document.getElementById('login-phone').value.trim();
 
-    // Constraint 1: 10-Digit Mobile Check
-    const phoneRegex = /^\d{10}$/;
-    if (!phoneRegex.test(phone)) {
-        alert("❌ Invalid Phone Number: Please enter a valid 10-digit mobile number.");
-        return;
-    }
+    if (!/^\d{10}$/.test(phone)) return alert("Enter 10-digit number.");
 
-    if (!rawName) {
-        alert("Please enter a valid organization name.");
-        return;
-    }
-
-    // Constraint 2: Branch Separation (Appends branch address if restaurant to keep data unique)
-    const uniqueEntityName = role === 'restaurant' && address ? `${rawName} (${address})` : rawName;
-
-    const userData = { role, name: uniqueEntityName, phone, address: role === 'restaurant' ? address : 'NGO Hub' };
-    sessionStorage.setItem('harvestLinkUser', JSON.stringify(userData));
+    sessionStorage.setItem('harvestLinkUser', JSON.stringify({
+        role, name: role === 'restaurant' && address ? `${rawName} (${address})` : rawName, phone,
+        address: role === 'restaurant' ? address : 'NGO Hub', lat: 26.9124, lon: 75.7873
+    }));
     checkAuthState();
 });
 
@@ -105,355 +115,149 @@ window.logoutUser = function() {
 
 function checkAuthState() {
     const user = getCurrentUser();
-    if (!user) {
-        viewLogin.classList.remove('hidden');
-        viewLogin.classList.add('flex');
-        viewRestaurant.classList.add('hidden');
-        viewRestaurant.classList.remove('flex');
-        viewNgo.classList.add('hidden');
-        viewNgo.classList.remove('flex');
-        userNav.classList.add('hidden');
-        loginForm.reset();
-    } else {
-        viewLogin.classList.add('hidden');
-        viewLogin.classList.remove('flex');
-        userNav.classList.remove('hidden');
-        userNav.classList.add('flex');
-        navUserBadge.innerHTML = `<i class="fa-solid fa-user-tag mr-1 text-emerald-400"></i> ${user.name} (${user.role.toUpperCase()})`;
-
-        if (user.role === 'restaurant') {
-            viewRestaurant.classList.remove('hidden');
-            viewRestaurant.classList.add('flex');
-            viewNgo.classList.add('hidden');
-            viewNgo.classList.remove('flex');
-            renderRestaurantDashboard();
-        } else {
-            viewNgo.classList.remove('hidden');
-            viewNgo.classList.add('flex');
-            viewRestaurant.classList.add('hidden');
-            viewRestaurant.classList.remove('flex');
-            renderNgoDashboard();
-        }
-    }
+    document.getElementById('view-login').style.display = user ? 'none' : 'grid';
+    document.getElementById('view-restaurant').style.display = user && user.role === 'restaurant' ? 'flex' : 'none';
+    document.getElementById('view-ngo').style.display = user && user.role === 'ngo' ? 'flex' : 'none';
+    document.getElementById('user-nav').style.display = user ? 'flex' : 'none';
+    if(user) document.getElementById('nav-user-badge').innerText = user.name;
+    if(user && user.role === 'restaurant') renderRestaurantDashboard();
+    if(user && user.role === 'ngo') renderNgoDashboard();
 }
 
-// ==========================================================================
-// RESTAURANT PORTAL LOGIC
-// ==========================================================================
-const donateForm = document.getElementById('donate-form');
-const restImpactMeals = document.getElementById('rest-impact-meals');
-const restActiveList = document.getElementById('rest-active-list');
-const restHistoryList = document.getElementById('rest-history-list');
-
-window.toggleRestHistory = function() {
-    const container = document.getElementById('rest-history-container');
-    container.classList.toggle('hidden');
-    container.classList.toggle('flex');
-};
-
-donateForm.addEventListener('submit', (e) => {
+// --- Restaurant Workflows ---
+document.getElementById('donate-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const user = getCurrentUser();
-    if (!user || user.role !== 'restaurant') return;
-
-    const qtyValue = parseInt(document.getElementById('food-qty').value);
+    const qty = parseInt(document.getElementById('food-qty').value);
+    const hrs = parseFloat(document.getElementById('food-hours').value);
     
-    // Constraint 3: Positive Quantity Validation
-    if (isNaN(qtyValue) || qtyValue <= 0) {
-        alert("❌ Quantity must be a positive number greater than 0.");
-        return;
-    }
-
-    const db = getDb();
-    const newListing = {
+    const db = localDbCache;
+    db.unshift({
         id: Date.now().toString(),
-        restaurant: user.name, // Tied uniquely to this specific branch
-        restPhone: user.phone,
-        address: user.address,
-        desc: document.getElementById('food-desc').value.trim(),
-        type: document.getElementById('food-type').value,
-        qty: qtyValue,
-        life: document.getElementById('food-life').value,
-        status: 'available', 
-        claimedBy: '',
-        claimedPhone: '',
-        otp: '',
-        postedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        completedAt: ''
-    };
-
-    db.unshift(newListing);
-    saveDb(db);
-    donateForm.reset();
-    alert("Surplus food successfully broadcasted to local NGOs!");
-    renderRestaurantDashboard();
+        restaurant: user.name, restPhone: user.phone, address: user.address, lat: user.lat, lon: user.lon,
+        desc: document.getElementById('food-desc').value.trim(), type: document.getElementById('food-type').value,
+        qty, createdAt: Date.now(), expiresAt: Date.now() + (hrs * 3600000), status: 'available',
+        claimedBy: '', claimedPhone: '', otp: '', postedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    });
+    database.ref('harvestLinkDb').set(db);
+    document.getElementById('donate-form').reset();
 });
 
 function renderRestaurantDashboard() {
     const user = getCurrentUser();
-    if (!user) return; 
-    const db = getDb();
+    const myItems = localDbCache.filter(i => i.restaurant === user.name);
     
-    // Filters strictly by THIS specific branch name
-    const myItems = db.filter(item => item.restaurant === user.name);
-
-    let totalImpact = 0;
-    myItems.filter(i => i.status === 'completed').forEach(i => totalImpact += i.qty);
-    restImpactMeals.innerText = totalImpact;
-
-    restActiveList.innerHTML = '';
-    const activeItems = myItems.filter(i => i.status === 'available' || i.status === 'claimed');
-    
-    if (activeItems.length === 0) {
-        restActiveList.innerHTML = `<p class="text-xs text-slate-500 font-bold col-span-2">No active or pending listings right now.</p>`;
-    } else {
-        activeItems.forEach(item => {
-            const div = document.createElement('div');
-            div.className = "bg-slate-950 p-4 rounded-2xl border border-slate-700 flex flex-col justify-between";
+    const actList = document.getElementById('rest-active-list');
+    actList.innerHTML = '';
+    myItems.filter(i => ['available', 'claimed'].includes(i.status)).forEach(item => {
+        let authHtml = item.status === 'claimed' ? `
+            <div class="mt-3 pt-3 border-t border-slate-700 flex gap-2">
+                <input type="text" id="otp-${item.id}" placeholder="4-digit OTP" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-white">
+                <button onclick="verifyOtp('${item.id}')" class="bg-emerald-600 text-white text-sm font-bold px-4 rounded">Verify</button>
+            </div>` : '';
             
-            let statusBadge = `<span class="bg-emerald-500/10 text-emerald-400 text-xs font-black px-2.5 py-1 rounded-md border border-emerald-500/20">AVAILABLE</span>`;
-            let verificationHtml = '';
-
-            if (item.status === 'claimed') {
-                statusBadge = `<span class="bg-blue-500/10 text-blue-400 text-xs font-black px-2.5 py-1 rounded-md border border-blue-500/20">CLAIMED BY: ${item.claimedBy.toUpperCase()}</span>`;
-                verificationHtml = `
-                    <div class="mt-3 pt-3 border-t border-slate-800 space-y-3">
-                        <p class="text-xs text-slate-300">Driver Phone: <strong class="text-white">${item.claimedPhone}</strong></p>
-                        <div class="flex gap-2">
-                            <input type="text" id="otp-input-${item.id}" placeholder="Enter 4-digit OTP" maxlength="4" class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-emerald-500">
-                            <button onclick="verifyRestaurantOtp('${item.id}')" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition">Verify</button>
-                        </div>
-                    </div>`;
-            }
-
-            div.innerHTML = `
-                <div>
-                    <div class="flex justify-between items-start mb-2">
-                        <h5 class="font-bold text-white text-sm">${item.desc}</h5>
-                        ${statusBadge}
-                    </div>
-                    <p class="text-xs text-slate-400 mb-1"><i class="fa-solid fa-box mr-1"></i> ${item.qty} Meals (${item.type})</p>
-                    <p class="text-xs text-slate-500"><i class="fa-solid fa-clock mr-1"></i> Posted at ${item.postedAt}</p>
-                </div>
-                ${verificationHtml}
-            `;
-            restActiveList.appendChild(div);
-        });
-    }
-
-    restHistoryList.innerHTML = '';
-    const completedItems = myItems.filter(i => i.status === 'completed');
-
-    if (completedItems.length === 0) {
-        restHistoryList.innerHTML = `<p class="text-xs text-slate-500 font-bold col-span-2">No completed orders recorded yet.</p>`;
-    } else {
-        completedItems.forEach(item => {
-            const div = document.createElement('div');
-            div.className = "bg-slate-950 p-4 rounded-2xl border border-slate-700";
-            div.innerHTML = `
+        actList.innerHTML += `
+            <div class="bg-slate-800 p-4 rounded border border-slate-700">
                 <div class="flex justify-between items-start mb-1">
-                    <h5 class="font-bold text-emerald-400 text-sm">${item.desc}</h5>
-                    <span class="text-xs text-slate-500 font-bold">${item.completedAt}</span>
+                    <span class="font-bold text-white text-sm">${item.desc}</span>
+                    <span class="text-[10px] font-bold px-2 py-1 bg-slate-950 rounded border border-slate-700 text-slate-300 uppercase">${item.status}</span>
                 </div>
-                <p class="text-xs text-slate-300">Rescued by: <strong class="text-white">${item.claimedBy}</strong> (${item.claimedPhone})</p>
-                <p class="text-xs text-slate-400 mt-1">Quantity: ${item.qty} Meals</p>
-            `;
-            restHistoryList.appendChild(div);
-        });
-    }
-}
-
-window.verifyRestaurantOtp = function(id) {
-    const otpField = document.getElementById(`otp-input-${id}`);
-    const enteredOtp = otpField ? otpField.value.trim() : '';
-    
-    if (!enteredOtp || enteredOtp.length !== 4) {
-        alert("Please enter the valid 4-digit OTP provided by the NGO driver.");
-        return;
-    }
-
-    let db = getDb();
-    const index = db.findIndex(i => i.id === id);
-
-    if (index > -1) {
-        if (db[index].otp === enteredOtp) {
-            db[index].status = 'completed';
-            db[index].completedAt = new Date().toLocaleString();
-            saveDb(db);
-            alert("✅ OTP Verified successfully! Rescue order marked as completed.");
-            renderRestaurantDashboard();
-        } else {
-            alert("❌ Incorrect OTP. Please verify the code with the driver.");
-        }
-    }
-};
-
-
-// ==========================================================================
-// NGO PORTAL LOGIC
-// ==========================================================================
-const ngoSearch = document.getElementById('ngo-search');
-const ngoFeed = document.getElementById('ngo-feed');
-const ngoEmpty = document.getElementById('ngo-empty');
-const ngoLiveCount = document.getElementById('ngo-live-count');
-
-const ngoActivePickups = document.getElementById('ngo-active-pickups');
-const ngoActiveEmpty = document.getElementById('ngo-active-empty');
-const ngoHistoryList = document.getElementById('ngo-history-list');
-const ngoHistoryEmpty = document.getElementById('ngo-history-empty');
-
-window.toggleNgoHistory = function() {
-    const container = document.getElementById('ngo-history-container');
-    container.classList.toggle('hidden');
-    container.classList.toggle('flex');
-};
-
-function renderNgoDashboard(searchQuery = null) {
-    const user = getCurrentUser();
-    if (!user) return; 
-    const db = getDb();
-
-    const searchInput = document.getElementById('ngo-search');
-    const query = (searchQuery !== null ? searchQuery : (searchInput ? searchInput.value : '')).toLowerCase();
-
-    ngoFeed.innerHTML = '';
-    const availableItems = db.filter(item => {
-        const isAvailable = item.status === 'available';
-        const matches = (item.desc || '').toLowerCase().includes(query) || 
-                        (item.restaurant || '').toLowerCase().includes(query) || 
-                        (item.type || '').toLowerCase().includes(query);
-                        
-        return isAvailable && matches;
+                <p class="text-xs text-slate-400">${item.qty} Meals • Posted ${item.postedAt}</p>
+                ${authHtml}
+            </div>`;
     });
 
-    ngoLiveCount.innerText = availableItems.length;
-
-    if (availableItems.length === 0) {
-        ngoEmpty.classList.remove('hidden');
-        ngoEmpty.classList.add('flex');
-    } else {
-        ngoEmpty.classList.add('hidden');
-        ngoEmpty.classList.remove('flex');
-
-        availableItems.forEach(item => {
-            const card = document.createElement('div');
-            card.className = "bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-xl flex flex-col justify-between";
-            card.innerHTML = `
-                <div>
-                    <div class="flex justify-between items-center mb-3">
-                        <span class="text-xs font-bold uppercase tracking-wider text-blue-400">${item.type}</span>
-                        <span class="text-xs font-bold text-red-400"><i class="fa-solid fa-hourglass-half mr-1"></i> Spoils in ${item.life}</span>
-                    </div>
-                    <h4 class="text-lg font-extrabold text-white mb-1">${item.desc}</h4>
-                    <p class="text-xs font-bold text-slate-400 mb-3">${item.qty} Approx Meals</p>
-                    
-                    <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 text-xs space-y-1 mb-4">
-                        <p class="font-bold text-slate-200"><i class="fa-solid fa-store mr-1 text-slate-400"></i> ${item.restaurant}</p>
-                        <p class="text-slate-400"><i class="fa-solid fa-location-dot mr-1 text-slate-400"></i> ${item.address}</p>
-                        <p class="text-slate-500"><i class="fa-solid fa-clock mr-1"></i> Posted at ${item.postedAt}</p>
-                    </div>
-                </div>
-
-                <div class="flex gap-2 pt-2 border-t border-slate-700">
-                    <button onclick="viewRoute('${(item.address || '').replace(/'/g, "\\'")}')" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold py-2.5 rounded-xl transition">
-                        <i class="fa-solid fa-map mr-1"></i> Route
-                    </button>
-                    <button onclick="claimListing('${item.id}')" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2.5 rounded-xl shadow transition">
-                        <i class="fa-solid fa-check mr-1"></i> Claim
-                    </button>
-                </div>
-            `;
-            ngoFeed.appendChild(card);
-        });
-    }
-
-    const myClaims = db.filter(item => item.status === 'claimed' && item.claimedBy === user.name);
-    ngoActivePickups.innerHTML = '';
-
-    if (myClaims.length === 0) {
-        ngoActiveEmpty.classList.remove('hidden');
-    } else {
-        ngoActiveEmpty.classList.add('hidden');
-        myClaims.forEach(item => {
-            const div = document.createElement('div');
-            div.className = "bg-blue-950/40 border border-blue-500/30 p-5 rounded-2xl relative shadow-xl flex flex-col justify-between";
-            div.innerHTML = `
-                <div>
-                    <div class="absolute top-0 right-0 bg-blue-600 text-white text-xs font-black px-4 py-1.5 rounded-bl-xl">
-                        OTP: ${item.otp}
-                    </div>
-                    <h4 class="font-bold text-white text-base mb-1">${item.desc}</h4>
-                    <p class="text-xs font-bold text-blue-300 mb-3">Donor: ${item.restaurant}</p>
-                    
-                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs space-y-1 text-slate-300 mb-3">
-                        <p><i class="fa-solid fa-location-dot mr-1 text-slate-400"></i> ${item.address}</p>
-                        <p><i class="fa-solid fa-phone mr-1 text-slate-400"></i> Restaurant Phone: <strong class="text-white">${item.restPhone}</strong></p>
-                    </div>
-                </div>
-                <p class="text-[11px] text-amber-300 font-semibold mt-2 pt-3 border-t border-blue-900/50">
-                    <i class="fa-solid fa-triangle-exclamation mr-1"></i> Share the 4-digit OTP above with the restaurant upon collection.
-                </p>
-            `;
-            ngoActivePickups.appendChild(div);
-        });
-    }
-
-    const myHistory = db.filter(item => item.status === 'completed' && item.claimedBy === user.name);
-    ngoHistoryList.innerHTML = '';
-
-    if (myHistory.length === 0) {
-        ngoHistoryEmpty.classList.remove('hidden');
-    } else {
-        ngoHistoryEmpty.classList.add('hidden');
-        myHistory.forEach(item => {
-            const div = document.createElement('div');
-            div.className = "bg-slate-950 p-4 rounded-2xl border border-slate-700 flex justify-between items-center text-xs";
-            div.innerHTML = `
-                <div>
-                    <h5 class="font-bold text-white text-sm mb-0.5">${item.desc}</h5>
-                    <p class="text-slate-400">Collected from: <strong class="text-emerald-400">${item.restaurant}</strong> (${item.qty} Meals)</p>
-                </div>
-                <div class="text-right text-slate-500 font-medium">
-                    <p>${item.completedAt}</p>
-                    <span class="text-emerald-400 font-bold">✓ Collected</span>
-                </div>
-            `;
-            ngoHistoryList.appendChild(div);
-        });
-    }
+    const histList = document.getElementById('rest-history-list');
+    histList.innerHTML = '';
+    myItems.filter(i => i.status === 'completed').forEach(item => {
+        histList.innerHTML += `
+            <div class="bg-slate-950 p-3 rounded border border-slate-800 text-xs text-slate-400">
+                <p><span class="text-white font-bold">${item.desc}</span> rescued by ${item.claimedBy}</p>
+            </div>`;
+    });
 }
 
+window.verifyOtp = function(id) {
+    const val = document.getElementById(`otp-${id}`).value.trim();
+    const idx = localDbCache.findIndex(i => i.id === id);
+    if (idx > -1 && localDbCache[idx].otp === val) {
+        localDbCache[idx].status = 'completed';
+        localDbCache[idx].completedAt = new Date().toLocaleString();
+        database.ref('harvestLinkDb').set(localDbCache);
+    } else alert("Invalid OTP.");
+};
+
+// --- NGO Workflows & Transactions ---
+function renderNgoDashboard() {
+    const user = getCurrentUser();
+    const query = document.getElementById('ngo-search')?.value.toLowerCase() || '';
+    const sortBy = document.getElementById('ngo-sort')?.value || 'priority';
+
+    let available = localDbCache.map(i => {
+        if (i.status === 'available' && i.expiresAt < Date.now()) i.status = 'expired';
+        return i;
+    }).filter(i => i.status === 'available' && (i.desc.toLowerCase().includes(query) || i.restaurant.toLowerCase().includes(query)))
+      .map(i => ({ ...i, ...computePriorityScore(i, user.lat, user.lon) }));
+
+    available.sort((a, b) => sortBy === 'urgency' ? a.expiresAt - b.expiresAt : sortBy === 'distance' ? a.distanceKm - b.distanceKm : b.score - a.score);
+
+    document.getElementById('ngo-feed').innerHTML = available.map(item => {
+        let badge = `<span class="text-xs font-bold text-white bg-slate-700 px-2 py-1 rounded">Available</span>`;
+        if (item.hoursLeft < 1) badge = `<span class="text-xs font-bold text-white bg-red-600 px-2 py-1 rounded">Critical: <1h</span>`;
+        else if (item.hoursLeft < 3) badge = `<span class="text-xs font-bold text-slate-950 bg-amber-400 px-2 py-1 rounded">Soon: ${Math.round(item.hoursLeft)}h</span>`;
+
+        return `
+        <div class="bg-slate-900 border border-slate-700 rounded p-4 flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-xs font-bold bg-slate-950 px-2 py-1 rounded border border-slate-800 text-slate-400">Match: ${item.score}</span>
+                    ${badge}
+                </div>
+                <h4 class="font-bold text-white mb-1">${item.desc}</h4>
+                <p class="text-sm text-slate-400 mb-3">${item.qty} Meals • ${item.type}</p>
+                <div class="bg-slate-950 p-3 rounded border border-slate-800 text-xs mb-4 text-slate-300">
+                    <p class="font-bold mb-1">${item.restaurant}</p>
+                    <p>${item.address} <span class="text-slate-500">(${item.distanceKm}km away)</span></p>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="window.open('https://maps.google.com/?q=${encodeURIComponent(item.address)}')", class="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold py-2.5 rounded transition">Map</button>
+                <button onclick="claimListing('${item.id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-2.5 rounded transition">Claim</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    const activeList = document.getElementById('ngo-active-pickups');
+    activeList.innerHTML = localDbCache.filter(i => i.status === 'claimed' && i.claimedBy === user.name).map(i => `
+        <div class="bg-slate-800 p-4 rounded border border-slate-700 relative">
+            <span class="absolute top-0 right-0 bg-white text-slate-900 font-bold px-3 py-1 rounded-bl text-xs">OTP: ${i.otp}</span>
+            <h4 class="font-bold text-white mb-1 pr-16">${i.desc}</h4>
+            <p class="text-xs text-slate-400">From: ${i.restaurant}</p>
+            <p class="text-xs text-slate-400">Tel: ${i.restPhone}</p>
+        </div>`).join('');
+        
+    document.getElementById('ngo-history-list').innerHTML = localDbCache.filter(i => i.status === 'completed' && i.claimedBy === user.name).map(i => `
+        <div class="text-xs text-slate-500 p-3 bg-slate-950 rounded border border-slate-800">
+            <span class="text-slate-300 font-bold">${i.desc}</span> collected from ${i.restaurant}
+        </div>`).join('');
+}
+
+// --- Atomic Database Transaction for Claims ---
 window.claimListing = function(id) {
     const user = getCurrentUser();
-    if (!user || user.role !== 'ngo') return;
+    const idx = localDbCache.findIndex(i => i.id === id);
+    if (idx === -1) return;
 
-    let db = getDb();
-    const index = db.findIndex(i => i.id === id);
-
-    if (index > -1) {
-        const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString();
-
-        db[index].status = 'claimed';
-        db[index].claimedBy = user.name;
-        db[index].claimedPhone = user.phone;
-        db[index].otp = generatedOtp;
-
-        saveDb(db);
-        alert(`Successfully claimed! Check your "Active Pickups" section below for the Restaurant's phone number and secure OTP.`);
-        renderNgoDashboard(ngoSearch.value);
-    }
+    database.ref(`harvestLinkDb/${idx}`).transaction((data) => {
+        if (!data || data.status !== 'available') return; 
+        data.status = 'claimed';
+        data.claimedBy = user.name;
+        data.claimedPhone = user.phone;
+        data.otp = Math.floor(1000 + Math.random() * 9000).toString();
+        return data;
+    }, (error, committed) => {
+        if (!committed) alert("Listing already claimed by another organization.");
+    });
 };
-
-window.viewRoute = function(address) {
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
-    window.open(mapsUrl, '_blank');
-};
-
-ngoSearch.addEventListener('input', (e) => {
-    const user = getCurrentUser();
-    if (user && user.role === 'ngo') {
-        renderNgoDashboard(e.target.value);
-    }
-});
 
 checkAuthState();
