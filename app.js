@@ -82,12 +82,12 @@ window.setRole = function(role) {
     const ngo = document.getElementById('card-ngo');
     
     if (role === 'restaurant') {
-        rest.className = "cursor-pointer p-3 rounded border-2 border-emerald-500 bg-slate-800 transition-all flex flex-col items-center text-center";
-        ngo.className = "cursor-pointer p-3 rounded border border-slate-700 bg-slate-950 transition-all flex flex-col items-center text-center";
+        rest.className = "cursor-pointer p-3.5 rounded-lg border-2 border-emerald-500 bg-slate-800 transition-all flex flex-col items-center text-center";
+        ngo.className = "cursor-pointer p-3.5 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-800 transition-all flex flex-col items-center text-center";
         document.getElementById('login-address-container').style.display = 'block';
     } else {
-        ngo.className = "cursor-pointer p-3 rounded border-2 border-blue-500 bg-slate-800 transition-all flex flex-col items-center text-center";
-        rest.className = "cursor-pointer p-3 rounded border border-slate-700 bg-slate-950 transition-all flex flex-col items-center text-center";
+        ngo.className = "cursor-pointer p-3.5 rounded-lg border-2 border-blue-500 bg-slate-800 transition-all flex flex-col items-center text-center";
+        rest.className = "cursor-pointer p-3.5 rounded-lg border border-slate-800 bg-slate-950 hover:bg-slate-800 transition-all flex flex-col items-center text-center";
         document.getElementById('login-address-container').style.display = 'none';
     }
 };
@@ -151,18 +151,18 @@ function renderRestaurantDashboard() {
     actList.innerHTML = '';
     myItems.filter(i => ['available', 'claimed'].includes(i.status)).forEach(item => {
         let authHtml = item.status === 'claimed' ? `
-            <div class="mt-3 pt-3 border-t border-slate-700 flex gap-2">
-                <input type="text" id="otp-${item.id}" placeholder="4-digit OTP" class="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-white">
-                <button onclick="verifyOtp('${item.id}')" class="bg-emerald-600 text-white text-sm font-bold px-4 rounded">Verify</button>
+            <div class="mt-4 pt-4 border-t border-slate-700 flex gap-2">
+                <input type="text" id="otp-${item.id}" placeholder="4-digit OTP" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-sm text-white focus:border-emerald-500">
+                <button onclick="verifyOtp('${item.id}')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold px-5 rounded-lg transition-colors">Verify</button>
             </div>` : '';
             
         actList.innerHTML += `
-            <div class="bg-slate-800 p-4 rounded border border-slate-700">
+            <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors">
                 <div class="flex justify-between items-start mb-1">
-                    <span class="font-bold text-white text-sm">${item.desc}</span>
-                    <span class="text-[10px] font-bold px-2 py-1 bg-slate-950 rounded border border-slate-700 text-slate-300 uppercase">${item.status}</span>
+                    <span class="font-bold text-white text-base">${item.desc}</span>
+                    <span class="text-[10px] font-bold px-2.5 py-1 bg-slate-950 rounded-md border border-slate-700 text-slate-300 uppercase tracking-widest">${item.status}</span>
                 </div>
-                <p class="text-xs text-slate-400">${item.qty} Meals • Posted ${item.postedAt}</p>
+                <p class="text-sm font-medium text-slate-400">${item.qty} Meals • Posted ${item.postedAt}</p>
                 ${authHtml}
             </div>`;
     });
@@ -171,8 +171,8 @@ function renderRestaurantDashboard() {
     histList.innerHTML = '';
     myItems.filter(i => i.status === 'completed').forEach(item => {
         histList.innerHTML += `
-            <div class="bg-slate-950 p-3 rounded border border-slate-800 text-xs text-slate-400">
-                <p><span class="text-white font-bold">${item.desc}</span> rescued by ${item.claimedBy}</p>
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-sm text-slate-400">
+                <p><span class="text-white font-bold">${item.desc}</span> rescued by <span class="text-slate-300 font-medium">${item.claimedBy}</span></p>
             </div>`;
     });
 }
@@ -202,43 +202,45 @@ function renderNgoDashboard() {
     available.sort((a, b) => sortBy === 'urgency' ? a.expiresAt - b.expiresAt : sortBy === 'distance' ? a.distanceKm - b.distanceKm : b.score - a.score);
 
     document.getElementById('ngo-feed').innerHTML = available.map(item => {
-        let badge = `<span class="text-xs font-bold text-white bg-slate-700 px-2 py-1 rounded">Available</span>`;
-        if (item.hoursLeft < 1) badge = `<span class="text-xs font-bold text-white bg-red-600 px-2 py-1 rounded">Critical: <1h</span>`;
-        else if (item.hoursLeft < 3) badge = `<span class="text-xs font-bold text-slate-950 bg-amber-400 px-2 py-1 rounded">Soon: ${Math.round(item.hoursLeft)}h</span>`;
+        let badge = `<span class="text-xs font-bold text-white bg-slate-700 px-2.5 py-1 rounded">Available</span>`;
+        if (item.hoursLeft < 1) badge = `<span class="text-xs font-bold text-white bg-red-600 px-2.5 py-1 rounded">Critical: <1h</span>`;
+        else if (item.hoursLeft < 3) badge = `<span class="text-xs font-bold text-slate-950 bg-amber-400 px-2.5 py-1 rounded">Soon: ${Math.round(item.hoursLeft)}h</span>`;
 
         return `
-        <div class="bg-slate-900 border border-slate-700 rounded p-4 flex flex-col justify-between">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 flex flex-col justify-between hover:border-slate-500 transition-colors">
             <div>
-                <div class="flex justify-between items-center mb-3">
-                    <span class="text-xs font-bold bg-slate-950 px-2 py-1 rounded border border-slate-800 text-slate-400">Match: ${item.score}</span>
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-xs font-bold bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 text-slate-300">Match: ${item.score}%</span>
                     ${badge}
                 </div>
-                <h4 class="font-bold text-white mb-1">${item.desc}</h4>
-                <p class="text-sm text-slate-400 mb-3">${item.qty} Meals • ${item.type}</p>
-                <div class="bg-slate-950 p-3 rounded border border-slate-800 text-xs mb-4 text-slate-300">
-                    <p class="font-bold mb-1">${item.restaurant}</p>
-                    <p>${item.address} <span class="text-slate-500">(${item.distanceKm}km away)</span></p>
+                <h4 class="text-lg font-bold text-white mb-1">${item.desc}</h4>
+                <p class="text-sm font-medium text-slate-400 mb-4">${item.qty} Meals • ${item.type}</p>
+                <div class="bg-slate-950 p-4 rounded-lg border border-slate-800 text-xs mb-5 text-slate-300 space-y-1.5">
+                    <p class="font-bold text-sm text-slate-200">${item.restaurant}</p>
+                    <p class="font-medium">${item.address} <span class="text-slate-500">(${item.distanceKm}km away)</span></p>
                 </div>
             </div>
             <div class="flex gap-2">
-                <button onclick="window.open('https://maps.google.com/?q=${encodeURIComponent(item.address)}')", class="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold py-2.5 rounded transition">Map</button>
-                <button onclick="claimListing('${item.id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-2.5 rounded transition">Claim</button>
+                <button onclick="window.open('https://maps.google.com/?q=${encodeURIComponent(item.address)}')", class="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold py-3 rounded-lg border border-slate-700 transition-colors">Route Map</button>
+                <button onclick="claimListing('${item.id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-3 rounded-lg transition-colors">Claim Food</button>
             </div>
         </div>`;
     }).join('');
 
     const activeList = document.getElementById('ngo-active-pickups');
     activeList.innerHTML = localDbCache.filter(i => i.status === 'claimed' && i.claimedBy === user.name).map(i => `
-        <div class="bg-slate-800 p-4 rounded border border-slate-700 relative">
-            <span class="absolute top-0 right-0 bg-white text-slate-900 font-bold px-3 py-1 rounded-bl text-xs">OTP: ${i.otp}</span>
-            <h4 class="font-bold text-white mb-1 pr-16">${i.desc}</h4>
-            <p class="text-xs text-slate-400">From: ${i.restaurant}</p>
-            <p class="text-xs text-slate-400">Tel: ${i.restPhone}</p>
+        <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 relative">
+            <span class="absolute top-0 right-0 bg-white text-slate-900 font-extrabold px-3 py-1.5 rounded-bl-lg text-xs">OTP: ${i.otp}</span>
+            <h4 class="font-bold text-white mb-2 pr-16 text-base">${i.desc}</h4>
+            <div class="space-y-1">
+                <p class="text-xs font-medium text-slate-300"><span class="text-slate-500">From:</span> ${i.restaurant}</p>
+                <p class="text-xs font-medium text-slate-300"><span class="text-slate-500">Tel:</span> ${i.restPhone}</p>
+            </div>
         </div>`).join('');
         
     document.getElementById('ngo-history-list').innerHTML = localDbCache.filter(i => i.status === 'completed' && i.claimedBy === user.name).map(i => `
-        <div class="text-xs text-slate-500 p-3 bg-slate-950 rounded border border-slate-800">
-            <span class="text-slate-300 font-bold">${i.desc}</span> collected from ${i.restaurant}
+        <div class="text-sm font-medium text-slate-400 p-4 bg-slate-950 rounded-xl border border-slate-800">
+            <span class="text-slate-200 font-bold">${i.desc}</span> collected from <span class="text-slate-300">${i.restaurant}</span>
         </div>`).join('');
 }
 
